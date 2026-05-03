@@ -5,14 +5,11 @@ import PyPDF2
 import io
 import hashlib
 
-# ── Setup ─────────────────────────────────────────────────────────────────────
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="StudyMind AI", page_icon="📚", layout="wide")
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
@@ -105,14 +102,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── ChromaDB ──────────────────────────────────────────────────────────────────
 @st.cache_resource
 def get_chroma_client():
     return chromadb.Client()
 
 client = get_chroma_client()
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 def extract_text_from_pdf(uploaded_file):
     reader = PyPDF2.PdfReader(io.BytesIO(uploaded_file.read()))
     text = ""
@@ -166,7 +161,6 @@ ANSWER:"""
     response = model.generate_content(prompt)
     return response.text
 
-# ── Session state ─────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "collection" not in st.session_state:
@@ -174,7 +168,6 @@ if "collection" not in st.session_state:
 if "pdf_name" not in st.session_state:
     st.session_state.pdf_name = ""
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 📚 StudyMind AI")
     st.markdown("---")
@@ -205,7 +198,6 @@ with st.sidebar:
             st.session_state.messages = []
             st.rerun()
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 if not st.session_state.collection:
     st.markdown('<p class="welcome-heading">Hello, what would you<br>like to study?</p>', unsafe_allow_html=True)
 
