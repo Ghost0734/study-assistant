@@ -1,12 +1,12 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 import chromadb
 import PyPDF2
 import io
 import hashlib
+import ast
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-1.5-flash")
+client_ai = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 st.set_page_config(page_title="StudyMind AI", page_icon="📚", layout="wide")
 
@@ -158,8 +158,32 @@ STUDENT'S QUESTION:
 {question}
 
 ANSWER:"""
-    response = model.generate_content(prompt)
+    response = client_ai.models.generate_content(model="gemini-2.0-flash", contents=prompt)
     return response.text
+
+def generate_quiz(collection):
+    chunks = get_relevant_chunks(collection, "key concepts and important topics", n=5)
+    context = "\n\n".join(chunks)
+    prompt = f"""You are a quiz generator. Based on the study material below, generate 5 multiple choice questions.
+
+Return ONLY a Python list of dictionaries in this exact format, no extra text:
+[
+  {{
+    "question": "Question text here?",
+    "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
+    "answer": "A) option1"
+  }}
+]
+
+STUDY MATERIAL:
+{context}"""
+    response = client_ai.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+    text = response.text.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("python"):
+            text = text[6:]
+    return ast.literal_eval(text.strip())
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -167,6 +191,16 @@ if "collection" not in st.session_state:
     st.session_state.collection = None
 if "pdf_name" not in st.session_state:
     st.session_state.pdf_name = ""
+if "mode" not in st.session_state:
+    st.session_state.mode = "chat"
+if "quiz_data" not in st.session_state:
+    st.session_state.quiz_data = None
+if "quiz_index" not in st.session_state:
+    st.session_state.quiz_index = 0
+if "quiz_score" not in st.session_state:
+    st.session_state.quiz_score = 0
+if "quiz_answer" not in st.session_state:
+    st.session_state.quiz_answer = None
 
 with st.sidebar:
     st.markdown("### 📚 StudyMind AI")
@@ -192,6 +226,15 @@ with st.sidebar:
         st.markdown("---")
         st.markdown(f"📄 **{st.session_state.pdf_name}**")
         st.markdown("---")
+        if st.button("🧠 Generate Quiz", use_container_width=True):
+            st.session_state.mode = "quiz"
+            st.session_state.quiz_data = None
+            st.rerun()
+
+        if st.button("💬 Back to Chat", use_container_width=True):
+            st.session_state.mode = "chat"
+            st.rerun()
+
         if st.button("🗑️ Clear", use_container_width=True):
             st.session_state.collection = None
             st.session_state.pdf_name = ""
@@ -221,17 +264,69 @@ if not st.session_state.collection:
     st.info("👈 Upload a PDF from the sidebar to get started")
 
 else:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
+    if st.session_state.mode == "quiz":
+        st.markdown("### Quiz Mode")
 
-    if question := st.chat_input("Ask anything about your study material..."):
-        st.session_state.messages.append({"role": "user", "content": question})
-        with st.chat_message("user"):
-            st.write(question)
-        with st.chat_message("assistant"):
-            with st.spinner(""):
-                chunks = get_relevant_chunks(st.session_state.collection, question)
-                answer = ask_gemini(question, chunks)
-            st.write(answer)
-            st.session_state.messages.append({"role": "assistant", "content": answer})
+        if st.session_state.quiz_data is None:
+            with st.spinner("Generating quiz..."):
+                try:
+                    st.session_state.quiz_data = generate_quiz(st.session_state.collection)
+                    st.session_state.quiz_index = 0
+                    st.session_state.quiz_score = 0
+                    st.session_state.quiz_answer = None
+                except Exception as e:
+                    st.error(f"Failed to generate quiz: {e}")
+
+        if st.session_state.quiz_data:
+            questions = st.session_state.quiz_data
+            idx = st.session_state.quiz_index
+
+            if idx < len(questions):
+                q = questions[idx]
+                st.markdown(f"**Question {idx + 1} of {len(questions)}**")
+                st.markdown(f"#### {q['question']}")
+
+                selected = st.radio("Choose an answer:", q["options"], key=f"q_{idx}")
+
+                if st.button("Submit Answer"):
+                    st.session_state.quiz_answer = selected
+                    if selected == q["answer"]:
+                        st.session_state.quiz_score += 1
+
+                if st.session_state.quiz_answer:
+                    if st.session_state.quiz_answer == q["answer"]:
+                        st.success("Correct!")
+                    else:
+                        st.error(f"Wrong. Correct answer: {q['answer']}")
+
+                    if st.button("Next Question"):
+                        st.session_state.quiz_index += 1
+                        st.session_state.quiz_answer = None
+                        st.rerun()
+            else:
+                total = len(questions)
+                score = st.session_state.quiz_score
+                st.markdown("## Quiz Complete!")
+                st.markdown(f"### Your score: {score} / {total}")
+                if st.button("Retake Quiz"):
+                    st.session_state.quiz_data = None
+                    st.session_state.quiz_index = 0
+                    st.session_state.quiz_score = 0
+                    st.session_state.quiz_answer = None
+                    st.rerun()
+
+    else:
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+
+        if question := st.chat_input("Ask anything about your study material..."):
+            st.session_state.messages.append({"role": "user", "content": question})
+            with st.chat_message("user"):
+                st.write(question)
+            with st.chat_message("assistant"):
+                with st.spinner(""):
+                    chunks = get_relevant_chunks(st.session_state.collection, question)
+                    answer = ask_gemini(question, chunks)
+                st.write(answer)
+                st.session_state.messages.append({"role": "assistant", "content": answer})
