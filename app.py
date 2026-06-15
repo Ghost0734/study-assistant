@@ -160,7 +160,7 @@ STUDENT'S QUESTION:
 {question}
 
 ANSWER:"""
-    response = client_ai.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+    response = client_ai.models.generate_content(model="gemini-2.5-flash", contents=prompt)
     return response.text
 
 def generate_quiz(collection):
@@ -179,15 +179,41 @@ Return ONLY a JSON array in this exact format, no extra text:
 
 STUDY MATERIAL:
 {context}"""
-    response = client_ai.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+    response = client_ai.models.generate_content(model="gemini-2.5-flash", contents=prompt)
     text = response.text.strip()
-    # Strip markdown code fences if Gemini wraps the response in them
-    if "```" in text:
-        text = text.split("```")[1]
-        if text.startswith("python") or text.startswith("json"):
-            text = text[7:]
-    return json.loads(text.strip())
+    # Extract just the JSON array from the response
+    start = text.find("[")
+    end = text.rfind("]") + 1
+    return json.loads(text[start:end])
 
+def generate_flashcards(collection):
+    chunks = get_relevant_chunks(collection, "key concepts definitions and important terms", n=5)
+    context = "\n\n".join(chunks)
+    prompt = f"""You are a flashcard generator. Based on the study material below, generate 8 flashcards.
+
+Return ONLY a JSON array in this exact format, no extra text:
+[
+  {{
+    "term": "Term or concept here",
+    "definition": "Clear, concise definition or explanation here"
+  }}
+]
+
+STUDY MATERIAL:
+{context}"""
+    response = client_ai.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    text = response.text.strip()
+    # Extract just the JSON array from the response
+    start = text.find("[")
+    end = text.rfind("]") + 1
+    return json.loads(text[start:end])
+
+if "flashcard_data" not in st.session_state:
+    st.session_state.flashcard_data = None
+if "flashcard_index" not in st.session_state:
+    st.session_state.flashcard_index = 0
+if "flashcard_flipped" not in st.session_state:
+    st.session_state.flashcard_flipped = False
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "collection" not in st.session_state:
@@ -233,10 +259,14 @@ with st.sidebar:
             st.session_state.mode = "quiz"
             st.session_state.quiz_data = None
             st.rerun()
+        
+        if st.button("🃏 Flashcards", use_container_width=True):
+             st.session_state.mode = "flashcards"
+             st.rerun()
 
         if st.button("💬 Back to Chat", use_container_width=True):
-            st.session_state.mode = "chat"
-            st.rerun()
+             st.session_state.mode = "chat"
+             st.rerun()
 
         if st.button("🗑️ Clear", use_container_width=True):
             st.session_state.collection = None
@@ -316,6 +346,55 @@ else:
                     st.session_state.quiz_index = 0
                     st.session_state.quiz_score = 0
                     st.session_state.quiz_answer = None
+                    st.rerun()
+
+    elif st.session_state.mode == "flashcards":
+        st.markdown("### 🃏 Flashcard Mode")
+
+        if st.session_state.flashcard_data is None:
+            with st.spinner("Generating flashcards..."):
+                try:
+                    st.session_state.flashcard_data = generate_flashcards(st.session_state.collection)
+                    st.session_state.flashcard_index = 0
+                    st.session_state.flashcard_flipped = False
+                except Exception as e:
+                    st.error(f"Failed to generate flashcards: {e}")
+
+        if st.session_state.flashcard_data:
+            cards = st.session_state.flashcard_data
+            idx = st.session_state.flashcard_index
+            card = cards[idx]
+
+            st.markdown(f"**Card {idx + 1} of {len(cards)}**")
+
+            if not st.session_state.flashcard_flipped:
+                st.markdown(f"""
+                <div class="welcome-card" style="padding: 2rem; text-align: center; margin-bottom: 1rem;">
+                    <p style="color: #9aa0a6; font-size: 0.85rem; margin-bottom: 0.5rem;">TERM</p>
+                    <h2 style="color: #e3e3e3; margin: 0;">{card['term']}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("Flip Card 👆", use_container_width=True):
+                    st.session_state.flashcard_flipped = True
+                    st.rerun()
+            else:
+                st.markdown(f"""
+                <div class="welcome-card" style="padding: 2rem; text-align: center; margin-bottom: 1rem; border-color: #8ab4f8;">
+                    <p style="color: #8ab4f8; font-size: 0.85rem; margin-bottom: 0.5rem;">DEFINITION</p>
+                    <p style="color: #e3e3e3; font-size: 1.1rem; margin: 0;">{card['definition']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("⬅️ Previous", use_container_width=True):
+                    st.session_state.flashcard_index = max(0, idx - 1)
+                    st.session_state.flashcard_flipped = False
+                    st.rerun()
+            with col2:
+                if st.button("Next ➡️", use_container_width=True):
+                    st.session_state.flashcard_index = min(len(cards) - 1, idx + 1)
+                    st.session_state.flashcard_flipped = False
                     st.rerun()
 
     else:
