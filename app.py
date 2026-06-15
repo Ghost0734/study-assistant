@@ -1,10 +1,12 @@
+from urllib import response
+
 import streamlit as st
 from google import genai
 import chromadb
 import PyPDF2
 import io
 import hashlib
-import ast
+import json
 
 client_ai = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
@@ -166,7 +168,7 @@ def generate_quiz(collection):
     context = "\n\n".join(chunks)
     prompt = f"""You are a quiz generator. Based on the study material below, generate 5 multiple choice questions.
 
-Return ONLY a Python list of dictionaries in this exact format, no extra text:
+Return ONLY a JSON array in this exact format, no extra text:
 [
   {{
     "question": "Question text here?",
@@ -179,11 +181,12 @@ STUDY MATERIAL:
 {context}"""
     response = client_ai.models.generate_content(model="gemini-2.0-flash", contents=prompt)
     text = response.text.strip()
-    if text.startswith("```"):
+    # Strip markdown code fences if Gemini wraps the response in them
+    if "```" in text:
         text = text.split("```")[1]
-        if text.startswith("python"):
-            text = text[6:]
-    return ast.literal_eval(text.strip())
+        if text.startswith("python") or text.startswith("json"):
+            text = text[7:]
+    return json.loads(text.strip())
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
