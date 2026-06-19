@@ -7,8 +7,9 @@ import PyPDF2
 import io
 import hashlib
 import json
+import os 
 
-client_ai = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+client_ai = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 st.set_page_config(page_title="StudyMind AI", page_icon="📚", layout="wide")
 
