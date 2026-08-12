@@ -319,12 +319,20 @@ else:
         if st.session_state.quiz_data is None:
             with st.spinner("Generating quiz..."):
                 try:
-                    st.session_state.quiz_data = generate_quiz(st.session_state.collection)
+                    response = requests.post(
+                        f"{API_BASE_URL}/quiz",
+                        json={"session_id": st.session_state.session_id},
+                        timeout=60,
+                    )
+                    response.raise_for_status()
+
+                    st.session_state.quiz_data = response.json()["questions"]
                     st.session_state.quiz_index = 0
                     st.session_state.quiz_score = 0
                     st.session_state.quiz_answer = None
-                except Exception as e:
-                    st.error(f"Failed to generate quiz: {e}")
+
+                except requests.RequestException as error:
+                    st.error(f"Failed to generate quiz: {error}")
 
         if st.session_state.quiz_data:
             questions = st.session_state.quiz_data
@@ -370,11 +378,19 @@ else:
         if st.session_state.flashcard_data is None:
             with st.spinner("Generating flashcards..."):
                 try:
-                    st.session_state.flashcard_data = generate_flashcards(st.session_state.collection)
+                    response = requests.post(
+                        f"{API_BASE_URL}/flashcards",
+                        json={"session_id": st.session_state.session_id},
+                        timeout=60,
+                    )
+                    response.raise_for_status()
+
+                    st.session_state.flashcard_data = response.json()["flashcards"]
                     st.session_state.flashcard_index = 0
                     st.session_state.flashcard_flipped = False
-                except Exception as e:
-                    st.error(f"Failed to generate flashcards: {e}")
+
+                except requests.RequestException as error:
+                    st.error(f"Failed to generate flashcards: {error}")
 
         if st.session_state.flashcard_data:
             cards = st.session_state.flashcard_data
@@ -384,29 +400,38 @@ else:
             st.markdown(f"**Card {idx + 1} of {len(cards)}**")
 
             if not st.session_state.flashcard_flipped:
-                st.markdown(f"""
-                <div class="welcome-card" style="padding: 2rem; text-align: center; margin-bottom: 1rem;">
-                    <p style="color: #9aa0a6; font-size: 0.85rem; margin-bottom: 0.5rem;">TERM</p>
-                    <h2 style="color: #e3e3e3; margin: 0;">{card['term']}</h2>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="welcome-card" style="padding: 2rem; text-align: center;">
+                        <p style="color: #9aa0a6;">TERM</p>
+                        <h2 style="color: #e3e3e3;">{card['term']}</h2>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
                 if st.button("Flip Card 👆", use_container_width=True):
                     st.session_state.flashcard_flipped = True
                     st.rerun()
             else:
-                st.markdown(f"""
-                <div class="welcome-card" style="padding: 2rem; text-align: center; margin-bottom: 1rem; border-color: #8ab4f8;">
-                    <p style="color: #8ab4f8; font-size: 0.85rem; margin-bottom: 0.5rem;">DEFINITION</p>
-                    <p style="color: #e3e3e3; font-size: 1.1rem; margin: 0;">{card['definition']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div class="welcome-card" style="padding: 2rem; text-align: center;">
+                        <p style="color: #8ab4f8;">DEFINITION</p>
+                        <p style="color: #e3e3e3;">{card['definition']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             col1, col2 = st.columns(2)
+
             with col1:
                 if st.button("⬅️ Previous", use_container_width=True):
                     st.session_state.flashcard_index = max(0, idx - 1)
                     st.session_state.flashcard_flipped = False
                     st.rerun()
+
             with col2:
                 if st.button("Next ➡️", use_container_width=True):
                     st.session_state.flashcard_index = min(len(cards) - 1, idx + 1)
@@ -418,13 +443,32 @@ else:
             with st.chat_message(msg["role"]):
                 st.write(msg["content"])
 
-        if question := st.chat_input("Ask anything about your study material..."):
-            st.session_state.messages.append({"role": "user", "content": question})
-            with st.chat_message("user"):
-                st.write(question)
-            with st.chat_message("assistant"):
-                with st.spinner(""):
-                    chunks = get_relevant_chunks(st.session_state.collection, question)
-                    answer = ask_gemini(question, chunks)
-                st.write(answer)
-                st.session_state.messages.append({"role": "assistant", "content": answer})
+    if question := st.chat_input("Ask anything about your study material..."):
+     st.session_state.messages.append({"role": "user", "content": question})
+
+     with st.chat_message("user"):
+        st.write(question)
+
+     with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/ask",
+                    json={
+                        "session_id": st.session_state.session_id,
+                        "question": question,
+                    },
+                    timeout=60,
+                )
+                response.raise_for_status()
+                data = response.json()
+                answer = data["answer"]
+            except requests.RequestException as error:
+                st.error(f"Could not get an answer: {error}")
+                answer = None
+
+        if answer:
+            st.write(answer)
+            st.session_state.messages.append(
+                {"role": "assistant", "content": answer}
+            )
