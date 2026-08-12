@@ -8,8 +8,10 @@ import io
 import hashlib
 import json
 import os 
+import requests 
 
 client_ai = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
 st.set_page_config(page_title="StudyMind AI", page_icon="📚", layout="wide")
 
@@ -219,6 +221,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "collection" not in st.session_state:
     st.session_state.collection = None
+if "session_id" not in st.session_state:
+    st.session_state.session_id = None
 if "pdf_name" not in st.session_state:
     st.session_state.pdf_name = ""
 if "mode" not in st.session_state:
@@ -238,21 +242,32 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload your study material", type="pdf")
 
     if uploaded_file:
-        if uploaded_file.name != st.session_state.pdf_name:
-            file_hash = hashlib.md5(uploaded_file.name.encode()).hexdigest()[:8]
-            collection_name = f"study_{file_hash}"
+     if uploaded_file.name != st.session_state.pdf_name:
+        with st.spinner("Uploading and processing PDF..."):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/upload",
+                    files={
+                        "file": (
+                            uploaded_file.name,
+                            uploaded_file.getvalue(),
+                            "application/pdf",
+                        )
+                    },
+                    timeout=60,
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            with st.spinner("Reading PDF..."):
-                text = extract_text_from_pdf(uploaded_file)
-            with st.spinner("Processing..."):
-                chunks = chunk_text(text)
-                st.session_state.collection = store_chunks(chunks, collection_name)
+                st.session_state.session_id = data["session_id"]
                 st.session_state.pdf_name = uploaded_file.name
                 st.session_state.messages = []
 
-            st.success(f"✅ {len(chunks)} chunks ready")
+                st.success(f"✅ {data['chunk_count']} chunks ready")
+            except requests.RequestException as error:
+                st.error(f"Could not process the PDF: {error}")
 
-    if st.session_state.collection:
+     if st.session_state.session_id:
         st.markdown("---")
         st.markdown(f"📄 **{st.session_state.pdf_name}**")
         st.markdown("---")
@@ -270,12 +285,12 @@ with st.sidebar:
              st.rerun()
 
         if st.button("🗑️ Clear", use_container_width=True):
-            st.session_state.collection = None
+            st.session_state.session_id = None
             st.session_state.pdf_name = ""
             st.session_state.messages = []
             st.rerun()
 
-if not st.session_state.collection:
+if not st.session_state.session_id:
     st.markdown('<p class="welcome-heading">Hello, what would you<br>like to study?</p>', unsafe_allow_html=True)
 
     st.markdown("""
