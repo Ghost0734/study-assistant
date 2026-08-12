@@ -62,20 +62,27 @@ st.markdown("""
     .welcome-card h4 { color: #e3e3e3; margin: 0 0 6px 0; font-size: 0.9rem; }
     .welcome-card p { color: #9aa0a6; margin: 0; font-size: 0.82rem; line-height: 1.4; }
 
-    [data-testid="stChatInput"] {
-        background: #1e1f20 !important;
-        border-radius: 24px !important;
-        border: 1px solid #3c3c3c !important;
-        padding: 8px 16px !important;
-    }
-    [data-testid="stChatInput"]:focus-within {
-        border-color: #8ab4f8 !important;
-    }
-    [data-testid="stChatInput"] textarea {
-        color: #e3e3e3 !important;
-        background: transparent !important;
-        font-size: 1rem !important;
-    }
+    [data-testid="stChatInput"] > div {
+    background: #1e1f20 !important;
+    border: 1px solid #3c3c3c !important;
+    border-radius: 24px !important;
+    padding: 8px 16px !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stChatInput"] > div:focus-within {
+    border-color: #8ab4f8 !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    color: #e3e3e3 !important;
+    background: transparent !important;
+    font-size: 1rem !important;
+    border: none !important;
+    outline: none !important;
+}
+    
 
     [data-testid="stChatMessage"] {
         background: transparent !important;
@@ -101,6 +108,16 @@ st.markdown("""
         border: 1px solid #2d2e2f !important;
         text-align: center;
     }
+    
+
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] textarea:focus,
+[data-testid="stChatInput"] textarea:invalid {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    -webkit-appearance: none !important;
+}
 
     h1, h2, h3 { color: #e3e3e3; }
     p, li { color: #9aa0a6; }
