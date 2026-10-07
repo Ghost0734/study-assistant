@@ -8,5 +8,8 @@ RUN pip install -r requirements.txt
 COPY . .
 
 EXPOSE 7860
+EXPOSE 8000
 
-CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0", "--server.enableXsrfProtection=false"]
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]
