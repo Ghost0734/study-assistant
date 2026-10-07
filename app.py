@@ -13,7 +13,12 @@ import requests
 client_ai = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-st.set_page_config(page_title="StudyMind AI", page_icon="📚", layout="wide")
+st.set_page_config(
+    page_title="StudyMind AI",
+    page_icon="📚",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 st.markdown("""
 <style>
@@ -27,8 +32,12 @@ st.markdown("""
     }
     [data-testid="stSidebar"] * { color: #e3e3e3; }
 
-    #MainMenu, footer, header { visibility: hidden; }
+        #MainMenu, footer { visibility: hidden; }
+    header[data-testid="stHeader"] { background: transparent; }
 
+    @media (min-width: 800px) {
+        [data-testid="stSidebarCollapseButton"] { display: none; }
+    }
     .block-container {
         max-width: 700px !important;
         margin: 0 auto !important;
