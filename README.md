@@ -24,6 +24,8 @@ StudyMind AI helps students study more efficiently by letting them upload PDFs a
 
 ## How It Works
 
+https://github.com/user-attachments/assets/14daf72e-0681-4402-9ef1-0548b59933d8
+
 StudyMind AI uses a RAG (Retrieval-Augmented Generation) pipeline:
 
 1. PDF text is extracted and split into chunks
